@@ -10,6 +10,7 @@ import json
 import logging
 import platform
 import random
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -35,6 +36,36 @@ ABLATION_GROUPS = {
     "money flow": ["credit_lag1", "debit_lag1", "net_lag1", "credit_avg_3m", "debit_avg_3m", "net_avg_3m"],
     "activity": ["txn_count_lag1"],
 }
+
+
+ARTIFACT_FILES = ["model.pkl", "optuna_study.pkl", "feature_columns.json", "metadata.json"]
+
+
+def save_version(models_dir, version, final_model, study, features, metadata):
+    """Save a trained model in its OWN folder models/versions/<version>/. Never touches the live model."""
+    vdir = Path(models_dir, "versions", version)
+    vdir.mkdir(parents=True, exist_ok=True)
+    joblib.dump(final_model, vdir / "model.pkl")
+    joblib.dump(study, vdir / "optuna_study.pkl")
+    (vdir / "feature_columns.json").write_text(json.dumps(features, indent=2))
+    (vdir / "metadata.json").write_text(json.dumps(metadata, indent=2, default=str))
+    return vdir
+
+
+def promote(models_dir, vdir):
+    """Make a saved version the LIVE model: copy its 4 files into models/.
+    The old live model is kept in models/versions/ first, so it can always be brought back."""
+    live = Path(models_dir)
+    meta = live / "metadata.json"
+    if meta.exists():
+        old_dir = live / "versions" / json.loads(meta.read_text())["model_version"]
+        if not old_dir.exists():                  # a live model saved before versions/ existed
+            old_dir.mkdir(parents=True)
+            for f in ARTIFACT_FILES:
+                if (live / f).exists():
+                    shutil.copy2(live / f, old_dir / f)
+    for f in ARTIFACT_FILES:                      # metadata.json last: it names the live version
+        shutil.copy2(vdir / f, live / f)
 
 
 def file_hash(path):
@@ -172,11 +203,10 @@ def main(config_path="config.yaml", n_trials=None):
                      "scikit-learn": sklearn.__version__, "optuna": optuna.__version__, "joblib": joblib.__version__},
         "config": {k: v for k, v in cfg.items() if k != "_hash"},
     }
-    if promoted:                           # write all four files together, metadata from scratch
-        joblib.dump(final_model, Path(p["models"], "model.pkl"))
-        joblib.dump(study, Path(p["models"], "optuna_study.pkl"))
-        Path(p["models"], "feature_columns.json").write_text(json.dumps(features, indent=2))
-        meta_path.write_text(json.dumps(metadata, indent=2, default=str))
+    metadata["promoted"] = promoted
+    vdir = save_version(p["models"], version, final_model, study, features, metadata)   # ALWAYS: its own folder
+    if promoted:                                                                         # only if better: make it live
+        promote(p["models"], vdir)
 
     # 16. model_runs row FIRST, then the cv predictions
     con = db.init_db(p["db"])
@@ -200,7 +230,7 @@ def main(config_path="config.yaml", n_trials=None):
     summary = comparison.groupby("model")[["train_MAE", "val_MAE"]].mean().sort_values("val_MAE")
     print("\n=== walk-forward folds (pooled) ===\n" + summary.round(1).to_string())
     print(f"\nhgb vs drift: {gain:+.2f} (95%: {lo:.2f} to {hi:.2f}) -> promoted model type: {model_type}")
-    print(f"model_version {version} | saved to models/: {promoted}")
+    print(f"model_version {version} | saved to {vdir} | live model now: {'this one' if promoted else 'the old one (kept)'}")
     return metadata
 
 

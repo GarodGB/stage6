@@ -1,0 +1,68 @@
+# ---- Part 1: settings shared by every Airflow container ----
+x-airflow-env: &airflow-env
+  AIRFLOW__CORE__EXECUTOR: LocalExecutor
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@airflow_postgres/airflow
+  AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+  AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
+
+x-airflow: &airflow
+  image: stage6-airflow
+  build: .
+  environment: *airflow-env
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./data:/opt/airflow/project/data
+    - ./models:/opt/airflow/project/models
+    - ./db:/opt/airflow/project/db
+    - ./reports:/opt/airflow/project/reports
+
+services:
+  # ---- Part 2: Airflow's own database ----
+  airflow_postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}"]
+      interval: 5s
+      retries: 10
+
+  # ---- Part 3: one-time setup (create tables + admin user), then exits ----
+  airflow_init:
+    <<: *airflow
+    command: version
+    environment:
+      <<: *airflow-env
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+    depends_on:
+      airflow_postgres:
+        condition: service_healthy
+
+  # ---- Part 4: the UI ----
+  airflow_webserver:
+    <<: *airflow
+    command: webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      airflow_init:
+        condition: service_completed_successfully
+
+  # ---- Part 5: the scheduler (runs the tasks) ----
+  airflow_scheduler:
+    <<: *airflow
+    command: scheduler
+    depends_on:
+      airflow_init:
+        condition: service_completed_successfully
+
+volumes:
+  airflow_pgdata:

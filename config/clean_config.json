@@ -1,0 +1,106 @@
+{
+  "config_version": "1.0",
+  "source": {
+    "excel_file": "data/raw/synthetic_dirty_transactions_v4.xlsx",
+    "transactions_sheet": "Transactions",
+    "mcc_sheet": "MCC_Reference"
+  },
+  "dates": {
+    "formats": [
+      "yyyy-MM-dd HH:mm:ss",
+      "dd/MM/yyyy HH:mm",
+      "MM-dd-yyyy HH:mm",
+      "dd-MMM-yy HH:mm",
+      "yyyy-MM-dd",
+      "dd/MM/yyyy",
+      "MM-dd-yyyy",
+      "dd-MMM-yy"
+    ],
+    "min_year": 2000,
+    "window_start": "2022-03-01",
+    "window_end": "2022-09-30",
+    "max_settle_lag_days": 5
+  },
+  "amounts": {
+    "fx_tolerance_pct": 0.01,
+    "fx_tolerance_abs": 0.01,
+    "outlier_usd": 5000,
+    "billing_x100": {
+      "tolerance_abs": 0.5,
+      "tolerance_pct": 0.001
+    }
+  },
+  "merchant": {
+    "known_prefixes": [
+      "SQ",
+      "IZ",
+      "TST",
+      "WPY",
+      "SP",
+      "PP",
+      "PAYPAL",
+      "GOOGLE"
+    ],
+    "prefix_rename": {
+      "PP": "PAYPAL"
+    },
+    "map_file": "config/merchant_map.json"
+  },
+  "city": {
+    "online_words": [
+      "INTERNET",
+      "ECOM",
+      "E-COMMERCE"
+    ],
+    "online_value": "ONLINE",
+    "unknown_value": "UNKNOWN",
+    "map": {
+      "BEIRUT LB": "BEIRUT",
+      "BEYROUTH": "BEIRUT",
+      "BEYRUT": "BEIRUT",
+      "TARABLUS": "TRIPOLI",
+      "TRABLOUS": "TRIPOLI",
+      "SAYDA": "SAIDA",
+      "SIDON": "SAIDA",
+      "JUNIYAH": "JOUNIEH",
+      "JOUNIE": "JOUNIEH",
+      "JBAIL": "JBEIL",
+      "BYBLOS": "JBEIL",
+      "ZAHLEH": "ZAHLE",
+      "ASHRAFIYA": "ASHRAFIEH",
+      "ACHRAFIEH": "ASHRAFIEH",
+      "AL HAMRA": "HAMRA",
+      "DUBAYY": "DUBAI",
+      "AL QAHIRAH": "CAIRO",
+      "AL KUWAYT": "KUWAIT CITY",
+      "ISTANBOUL": "ISTANBUL"
+    },
+    "country_file": "config/city_country.json"
+  },
+  "terminal": {
+    "missing_values": [
+      "00000000"
+    ]
+  },
+  "auth": {
+    "fake_codes": [
+      "000000",
+      "ZZ0011",
+      "9X4K7P",
+      "A1B2C3"
+    ]
+  },
+  "rules": {
+    "atm_processing_type": "ATM Cash Withdrawal",
+    "atm_mcc": "6011",
+    "matched_status": "Match"
+  },
+  "quality_gate": {
+    "max_unparseable_required": 0,
+    "max_flag_rate": 0.25
+  },
+  "output": {
+    "clean_csv": "data/processed/transactions_clean.csv",
+    "report": "reports/clean_report.json"
+  }
+}
